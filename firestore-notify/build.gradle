@@ -1,0 +1,42 @@
+buildscript {
+    repositories { jcenter() }
+}
+
+plugins {
+    id 'java'
+}
+
+
+compileJava {
+    sourceCompatibility = 1.8
+    targetCompatibility = 1.8
+}
+
+repositories {
+    jcenter()
+}
+
+dependencies {
+    // https://mvnrepository.com/artifact/com.google.guava/guava
+    compile group: 'com.google.guava', name: 'guava', version: '19.0'
+    // https://mvnrepository.com/artifact/com.google.cloud/google-cloud-firestore
+    compile group: 'com.google.cloud', name: 'google-cloud-firestore', version: '1.1.0'
+
+    compile 'com.github.javafaker:javafaker:0.18'
+
+
+    compile 'commons-io:commons-io:2.4'
+
+    testCompile 'junit:junit:4.11'
+}
+
+
+task( orchestrator, dependsOn: jar, type: JavaExec ) {
+    main = 'com.example.Orchestrator'
+    classpath = sourceSets.main.runtimeClasspath
+}
+
+task( observer, dependsOn: jar, type: JavaExec ) {
+    main = 'com.example.Observer'
+    classpath = sourceSets.main.runtimeClasspath
+}
