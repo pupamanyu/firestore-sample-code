@@ -125,9 +125,12 @@ public class Orchestrator {
   private ImmutableMap<String, String> updateData(String firstName) {
     this.salt.update(UUID.randomUUID().toString().getBytes(StandardCharsets.UTF_8));
     return ImmutableMap.of(
-        "uuid", BaseEncoding.base16().encode(this.salt.digest()),
-        "type", "person",
-        "firstName", firstName);
+        "uuid",
+        BaseEncoding.base16().encode(this.salt.digest()),
+        "type",
+        "person",
+        "firstName",
+        firstName);
   }
 
   private ImmutableMap<String, String> getData() {
@@ -138,29 +141,31 @@ public class Orchestrator {
         "firstName", this.faker.name().firstName());
   }
 
-  private static void cycleForever(Orchestrator orchestrator) {
+  static void cycleForever(Orchestrator orchestrator, String operation) {
     long lastCycleTime = Long.MIN_VALUE;
     while (true) {
       waitForMinCycleTime(lastCycleTime);
       lastCycleTime = System.currentTimeMillis();
       /**
-       *       For testing updates,
-       *       document ID is set to yZItWvz27xUcyvC3bARt,
-       *       and field firstName is set to Duncan for filtering
-       *       This can be set to any existing document ID and
-       *       any existing field within the existing document
+       * For testing updates, document ID is set to yZItWvz27xUcyvC3bARt, and field firstName is set
+       * to Duncan for filtering This can be set to any existing document ID and any existing field
+       * within the existing document
        *
-       *       For testing inserts,
+       * <p>For testing inserts,
        *
-       *       change:
+       * <p>change:
        *
-       *       orchestrator.update("yZItWvz27xUcyvC3bARt", "Duncan")
+       * <p>orchestrator.update("yZItWvz27xUcyvC3bARt", "Duncan")
        *
-       *       to:
+       * <p>to:
        *
-       *       orchestrator.insert();
+       * <p>orchestrator.insert();
        */
-      orchestrator.update("yZItWvz27xUcyvC3bARt", "Duncan");
+      if (operation.equals("insert")) {
+        orchestrator.insert();
+      } else if (operation.equals("update")) {
+        orchestrator.update("yZItWvz27xUcyvC3bARt", "Duncan");
+      }
     }
   }
 
@@ -178,10 +183,9 @@ public class Orchestrator {
   public static void main(String[] args) {
 
     String collection = "accounts";
-    //String document = args[1];
 
     Orchestrator orchestrator = new Orchestrator(collection);
 
-    cycleForever(orchestrator);
+    cycleForever(orchestrator, "update");
   }
 }

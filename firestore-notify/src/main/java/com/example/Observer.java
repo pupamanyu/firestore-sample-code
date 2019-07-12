@@ -1,6 +1,5 @@
 package com.example;
 
-import com.google.api.core.SettableApiFuture;
 import com.google.api.gax.retrying.RetrySettings;
 import com.google.auth.Credentials;
 import com.google.auth.oauth2.GoogleCredentials;
@@ -9,16 +8,20 @@ import com.google.cloud.firestore.EventListener;
 import com.google.cloud.firestore.Firestore;
 import com.google.cloud.firestore.FirestoreException;
 import com.google.cloud.firestore.FirestoreOptions;
+import com.google.cloud.firestore.ListenerRegistration;
 import com.google.cloud.firestore.Query;
 import com.google.cloud.firestore.QuerySnapshot;
+import io.reactivex.ObservableEmitter;
+import io.reactivex.ObservableOnSubscribe;
+import io.reactivex.disposables.Disposables;
+import io.reactivex.functions.Action;
 
 import javax.annotation.Nullable;
 import java.io.FileInputStream;
 import java.io.IOException;
-import java.util.List;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
-public class Observer {
+public class Observer implements ObservableOnSubscribe<DocumentChange> {
 
   private final Firestore firestoreDB;
   private final String collection;
@@ -64,78 +67,43 @@ public class Observer {
         .setMaxRpcTimeout(org.threeten.bp.Duration.ofMillis(50_000L));
   }
 
-  List<DocumentChange> listenForChanges() throws Exception {
-    SettableApiFuture<List<DocumentChange>> future = SettableApiFuture.create();
+  @Override
+  public void subscribe(final ObservableEmitter<DocumentChange> emitter) throws Exception {
+
     Query queryRef = this.firestoreDB.collection(this.collection).whereEqualTo("type", "person");
-    queryRef.addSnapshotListener(new EventListener<QuerySnapshot>() {
-      @Override
-      public void onEvent(@Nullable QuerySnapshot snapshots,
-          @Nullable FirestoreException e) {
-        if (e != null) {
-          System.err.println("Listen failed: " + e);
-          return;
-        }
-
-        for (DocumentChange dc : snapshots.getDocumentChanges()) {
-          switch (dc.getType()) {
-            case ADDED:
-              System.out.println("New Person: " + dc.getDocument().getData());
-              break;
-            case MODIFIED:
-              System.out.println("Modified Person: " + dc.getDocument().getData());
-              break;
-            case REMOVED:
-              System.out.println("Removed Person: " + dc.getDocument().getData());
-              break;
-            default:
-              break;
+    final EventListener<QuerySnapshot> querySnapshotEventListener =
+        new EventListener<QuerySnapshot>() {
+          @Override
+          public void onEvent(@Nullable QuerySnapshot snapshots, @Nullable FirestoreException e) {
+            if (!emitter.isDisposed()) {
+              if (e == null) {
+                for (DocumentChange dc : snapshots.getDocumentChanges()) {
+                  emitter.onNext(dc);
+                }
+              } else {
+                emitter.onError(e);
+              }
+            }
           }
-        }
-        if (!future.isDone()) {
-          future.set(snapshots.getDocumentChanges());
-        }
-      }
-    });
-    return future.get(TIMEOUT_SECONDS, TimeUnit.SECONDS);
-    }
+        };
+    ListenerRegistration registration = queryRef.addSnapshotListener(querySnapshotEventListener);
+    emitter.setDisposable(
+        Disposables.fromAction(
+            new Action() {
 
-  public void watch() {
-    Query queryRef = this.firestoreDB.collection(this.collection).whereEqualTo("type", "person");
-    queryRef.addSnapshotListener(new EventListener<QuerySnapshot>() {
-      @Override
-      public void onEvent(@Nullable QuerySnapshot snapshots,
-          @Nullable FirestoreException e) {
-        if (e != null) {
-          System.err.println("Listen failed: " + e);
-          return;
-        }
-
-        for (DocumentChange dc : snapshots.getDocumentChanges()) {
-          switch (dc.getType()) {
-            case ADDED:
-              System.out.println("New Person: " + dc.getDocument().getData());
-              break;
-            case MODIFIED:
-              System.out.println("Modified Person: " + dc.getDocument().getData());
-              break;
-            case REMOVED:
-              System.out.println("Removed Person: " + dc.getDocument().getData());
-              break;
-            default:
-              break;
-          }
-        }
-      }
-    });
+              @Override
+              public void run() throws Throwable {
+                registration.remove();
+              }
+            }));
   }
-
 
   private static void cycleForever(Observer observer) {
     long lastCycleTime = Long.MIN_VALUE;
     while (true) {
       waitForMinCycleTime(lastCycleTime);
       lastCycleTime = System.currentTimeMillis();
-      observer.watch();
+      // observer.watch();
     }
   }
 
@@ -149,20 +117,4 @@ public class Observer {
       }
     }
   }
-
-  public static void main(String[] args) {
-
-    String collection = "accounts";
-
-    Observer observer = new Observer(collection);
-
-    try {
-      observer.listenForChanges();
-    } catch (Exception e) {
-      e.printStackTrace();
-    }
-    //cycleForever(observer);
-
-  }
-
 }
